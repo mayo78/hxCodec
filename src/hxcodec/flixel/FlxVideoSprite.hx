@@ -16,6 +16,8 @@ class FlxVideoSprite extends FlxSprite
 	// Variables
 	public var bitmap(default, null):Video;
 
+	public var autoPause:Bool = FlxG.autoPause;
+
 	public function new(x:Float = 0, y:Float = 0):Void
 	{
 		super(x, y);
@@ -37,7 +39,7 @@ class FlxVideoSprite extends FlxSprite
 	// Methods
 	public function play(location:String, shouldLoop:Bool = false):Int
 	{
-		if (FlxG.autoPause)
+		if (autoPause)
 		{
 			if (!FlxG.signals.focusGained.has(resume))
 				FlxG.signals.focusGained.add(resume);
@@ -105,7 +107,7 @@ class FlxVideoSprite extends FlxSprite
 
 	override public function destroy():Void
 	{
-		if (FlxG.autoPause)
+		if (autoPause)
 		{
 			if (FlxG.signals.focusGained.has(resume))
 				FlxG.signals.focusGained.remove(resume);

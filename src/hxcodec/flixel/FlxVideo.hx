@@ -10,6 +10,7 @@ class FlxVideo extends Video
 {
 	// Variables
 	public var autoResize:Bool = true;
+	public var autoPause:Bool = FlxG.autoPause;
 
 	public function new():Void
 	{
@@ -27,7 +28,7 @@ class FlxVideo extends Video
 
 	override public function play(location:String, shouldLoop:Bool = false):Int
 	{
-		if (FlxG.autoPause)
+		if (autoPause)
 		{
 			if (!FlxG.signals.focusGained.has(resume))
 				FlxG.signals.focusGained.add(resume);
@@ -46,7 +47,7 @@ class FlxVideo extends Video
 
 	override public function dispose():Void
 	{
-		if (FlxG.autoPause)
+		if (autoPause)
 		{
 			if (FlxG.signals.focusGained.has(resume))
 				FlxG.signals.focusGained.remove(resume);
