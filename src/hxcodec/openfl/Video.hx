@@ -110,6 +110,7 @@ static void logging(void *data, int level, const libvlc_log_t *ctx, const char *
 	}
 	#else
 	vprintf(fmt, args);
+	printf("\\n");
 	#endif
 }')
 class Video extends Bitmap
