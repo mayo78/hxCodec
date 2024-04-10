@@ -45,12 +45,11 @@ static unsigned format_setup(void **data, char *chroma, unsigned *width, unsigne
 	self->videoWidth = formatWidth;
 	self->videoHeight = formatHeight;
 
-	self->events[9] = true;
-
 	if (self->pixels != NULL)
+	{
 		delete self->pixels;
-
-	self->pixels = new uint8_t[formatWidth * formatHeight * 4];
+		self->pixels = NULL;
+	}
 
 	self->pixelsMutex->release();
 
@@ -66,6 +65,16 @@ static void *lock(void *data, void **p_pixels)
 
 	Video_obj *self = reinterpret_cast<Video_obj *>(data);
 	self->pixelsMutex->acquire();
+
+	// The `format_setup` callback may be called multiple times as libvlc attempts to use different decoders,
+	// so defer the frame buffer creation until we actually decode the first frame.
+	if( self->pixels == NULL )
+	{
+		// Signals the main Haxe thread to create the texture.
+		self->events[9] = true;
+		self->pixels = new uint8_t[self->videoWidth * self->videoHeight * 4];
+	}
+
 	*p_pixels = self->pixels;
 
 	::hx::SetTopOfStack(0, true);
