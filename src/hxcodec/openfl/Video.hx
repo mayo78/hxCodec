@@ -11,6 +11,7 @@ import openfl.Lib;
 import openfl.display.Bitmap;
 import openfl.display.BitmapData;
 import openfl.display3D.textures.RectangleTexture;
+import sys.thread.Mutex;
 
 /**
  * @author Mihai Alexandru (M.A. Jigsaw).
@@ -22,11 +23,15 @@ import openfl.display3D.textures.RectangleTexture;
 #end
 @:headerInclude('stdint.h')
 @:headerInclude('stdio.h')
+@:cppInclude('hx/CFFI.h')
 @:cppNamespaceCode('
 static unsigned format_setup(void **data, char *chroma, unsigned *width, unsigned *height, unsigned *pitches, unsigned *lines)
 {
-	Video_obj *self = reinterpret_cast<Video_obj *>(*data);
+	// libvlc calls this function from a non-Haxe thread, so use `SetTopOfStack` to allow the Haxe GC to scan this thread.
+	int _stack = 0;
+	::hx::SetTopOfStack(&_stack, true);
 
+	Video_obj *self = reinterpret_cast<Video_obj *>(*data);
 	unsigned formatWidth = (*width);
 	unsigned formatHeight = (*height);
 
@@ -34,6 +39,8 @@ static unsigned format_setup(void **data, char *chroma, unsigned *width, unsigne
 	(*lines) = formatHeight;
 
 	strcpy(chroma, "RV32");
+
+	self->pixelsMutex->acquire();
 
 	self->videoWidth = formatWidth;
 	self->videoHeight = formatHeight;
@@ -44,20 +51,47 @@ static unsigned format_setup(void **data, char *chroma, unsigned *width, unsigne
 		delete self->pixels;
 
 	self->pixels = new uint8_t[formatWidth * formatHeight * 4];
+
+	self->pixelsMutex->release();
+
+	::hx::SetTopOfStack(0, true);
 	return 1;
 }
 
 static void *lock(void *data, void **p_pixels)
 {
+	// libvlc calls this function from a non-Haxe thread, so use `SetTopOfStack` to allow the Haxe GC to scan this thread.
+	int _stack = 0;
+	::hx::SetTopOfStack(&_stack, true);
+
 	Video_obj *self = reinterpret_cast<Video_obj *>(data);
+	self->pixelsMutex->acquire();
 	*p_pixels = self->pixels;
+
+	::hx::SetTopOfStack(0, true);
 	return NULL; // picture identifier, not needed here
+}
+
+static void unlock(void *data, void *picture, void *const *planes)
+{
+	// libvlc calls this function from a non-Haxe thread, so use `SetTopOfStack` to allow the Haxe GC to scan this thread.
+	int _stack = 0;
+	::hx::SetTopOfStack(&_stack, true);
+
+	Video_obj *self = reinterpret_cast<Video_obj *>(data);
+	self->pixelsMutex->release();
+
+	::hx::SetTopOfStack(0, true);
 }
 
 static void callbacks(const libvlc_event_t *event, void *data)
 {
-	Video_obj *self = reinterpret_cast<Video_obj *>(data);
+	// libvlc calls this function from a non-Haxe thread, so use `SetTopOfStack` to allow the Haxe GC to scan this thread.
+	int _stack = 0;
+	::hx::SetTopOfStack(&_stack, true);
 
+	Video_obj *self;
+	self = reinterpret_cast<Video_obj *>(data);
 	switch (event->type)
 	{
 		case libvlc_MediaPlayerOpening:
@@ -88,6 +122,8 @@ static void callbacks(const libvlc_event_t *event, void *data)
 			self->events[8] = true;
 			break;
 	}
+
+	::hx::SetTopOfStack(0, true);
 }
 
 static void logging(void *data, int level, const libvlc_log_t *ctx, const char *fmt, va_list args)
@@ -154,6 +190,7 @@ class Video extends Bitmap
 	private var mediaPlayer:cpp.RawPointer<LibVLC_MediaPlayer_T>;
 	private var mediaItem:cpp.RawPointer<LibVLC_Media_T>;
 	private var eventManager:cpp.RawPointer<LibVLC_EventManager_T>;
+	private var pixelsMutex:Mutex;
 
 	public function new():Void
 	{
@@ -186,6 +223,8 @@ class Video extends Bitmap
 		instance = LibVLC.create(1, untyped __cpp__('argv'));
 		#end
 
+		pixelsMutex = new Mutex();
+
 		#if HXC_LIBVLC_LOGGING
 		LibVLC.log_set(instance, untyped __cpp__('logging'), untyped __cpp__('NULL'));
 		#end
@@ -217,7 +256,7 @@ class Video extends Bitmap
 		LibVLC.media_release(mediaItem);
 
 		LibVLC.video_set_format_callbacks(mediaPlayer, untyped __cpp__('format_setup'), untyped __cpp__('NULL'));
-		LibVLC.video_set_callbacks(mediaPlayer, untyped __cpp__('lock'), untyped __cpp__('NULL'), untyped __cpp__('NULL'), untyped __cpp__('this'));
+		LibVLC.video_set_callbacks(mediaPlayer, untyped __cpp__('lock'), untyped __cpp__('unlock'), untyped __cpp__('NULL'), untyped __cpp__('this'));
 
 		attachEvents();
 
@@ -490,8 +529,10 @@ class Video extends Bitmap
 			else
 				return;
 
+			pixelsMutex.acquire();
 			if (texture != null && pixels != null)
 				texture.uploadFromByteArray(cpp.Pointer.fromRaw(pixels).toUnmanagedArray(videoWidth * videoHeight * 4), 0);
+			pixelsMutex.release();
 
 			__setRenderDirty();
 		}
@@ -557,10 +598,14 @@ class Video extends Bitmap
 
 		if (events[9])
 		{
-			events[9] = false;
+			pixelsMutex.acquire();
 
+			events[9] = false;
 			if ((bitmapData != null && bitmapData.width == videoWidth && bitmapData.height == videoHeight) && texture != null)
+			{
+				pixelsMutex.release();
 				return;
+			}
 
 			if (bitmapData != null)
 				bitmapData.dispose();
@@ -573,6 +618,8 @@ class Video extends Bitmap
 			smoothing = true;
 
 			onTextureSetup.dispatch();
+
+			pixelsMutex.release();
 		}
 	}
 
