@@ -332,6 +332,8 @@ class Video extends Bitmap
 
 		videoWidth = 0;
 		videoHeight = 0;
+
+		untyped __cpp__('delete this->pixels;');
 		pixels = null;
 
 		events.splice(0, events.length);
