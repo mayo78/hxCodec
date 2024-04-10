@@ -93,6 +93,19 @@ static void unlock(void *data, void *picture, void *const *planes)
 	::hx::SetTopOfStack(0, true);
 }
 
+static void display(void *data, void *picture)
+{
+	// libvlc calls this function from a non-Haxe thread, so use `SetTopOfStack` to allow the Haxe GC to scan this thread.
+	int _stack = 0;
+	::hx::SetTopOfStack(&_stack, true);
+
+	Video_obj *self = reinterpret_cast<Video_obj *>(data);
+	self->frameReady = true; // Signals the main Haxe thread to upload the new frame.
+
+	::hx::SetTopOfStack(0, true);
+}
+
+
 static void callbacks(const libvlc_event_t *event, void *data)
 {
 	// libvlc calls this function from a non-Haxe thread, so use `SetTopOfStack` to allow the Haxe GC to scan this thread.
@@ -190,9 +203,8 @@ class Video extends Bitmap
 	public var onTextureSetup(default, null):Event<Void->Void>;
 
 	// Declarations
-	private var oldTime:Float = 0;
-	private var deltaTime:Float = 0;
 	private var events:Array<Bool>;
+	private var frameReady:Bool;
 	private var texture:RectangleTexture;
 	private var pixels:cpp.RawPointer<cpp.UInt8>;
 	private var instance:cpp.RawPointer<LibVLC_Instance_T>;
@@ -265,7 +277,7 @@ class Video extends Bitmap
 		LibVLC.media_release(mediaItem);
 
 		LibVLC.video_set_format_callbacks(mediaPlayer, untyped __cpp__('format_setup'), untyped __cpp__('NULL'));
-		LibVLC.video_set_callbacks(mediaPlayer, untyped __cpp__('lock'), untyped __cpp__('unlock'), untyped __cpp__('NULL'), untyped __cpp__('this'));
+		LibVLC.video_set_callbacks(mediaPlayer, untyped __cpp__('lock'), untyped __cpp__('unlock'), untyped __cpp__('display'), untyped __cpp__('this'));
 
 		attachEvents();
 
@@ -529,20 +541,13 @@ class Video extends Bitmap
 		if (events.contains(true))
 			checkEvents();
 
-		if (__renderable && isPlaying)
+		if (__renderable && isPlaying && frameReady)
 		{
-			deltaTime += elapsed;
-
-			if (Math.abs(deltaTime - oldTime) > 8.3) // 8.(3) means 120 fps in milliseconds...
-				oldTime = deltaTime;
-			else
-				return;
-
 			pixelsMutex.acquire();
+			frameReady = false;
 			if (texture != null && pixels != null)
 				texture.uploadFromByteArray(cpp.Pointer.fromRaw(pixels).toUnmanagedArray(videoWidth * videoHeight * 4), 0);
 			pixelsMutex.release();
-
 			__setRenderDirty();
 		}
 	}
