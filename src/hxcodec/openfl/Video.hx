@@ -218,7 +218,7 @@ class Video extends Bitmap
 		super(bitmapData, AUTO, true);
 
 		events = new Array<Bool>();
-		for (i in 0...9)
+		for (i in 0...10)
 			events[i] = false;
 
 		onOpening = new Event<Void->Void>();
@@ -341,7 +341,8 @@ class Video extends Bitmap
 
 		pixelsMutex.release();
 
-		events.splice(0, events.length);
+		for (i in 0...10)
+			events[i] = false;
 
 		if (instance != null)
 		{
