@@ -330,11 +330,16 @@ class Video extends Bitmap
 			texture = null;
 		}
 
+		pixelsMutex.acquire();
+		
 		videoWidth = 0;
 		videoHeight = 0;
 
 		untyped __cpp__('delete this->pixels;');
 		pixels = null;
+		frameReady = false;
+
+		pixelsMutex.release();
 
 		events.splice(0, events.length);
 
