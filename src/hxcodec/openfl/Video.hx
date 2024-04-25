@@ -173,17 +173,36 @@ class Video extends Bitmap
 		onMediaChanged = new Event<Void->Void>();
 		onTextureSetup = new Event<Void->Void>();
 
-		#if mac
-		Sys.putEnv("VLC_PLUGIN_PATH", Path.directory(Sys.programPath()) + '/plugins');
+		var params = ["--no-lua"];
+
+		#if (mac || windows)
+		var pluginsPath = Path.join([Path.directory(Sys.programPath()), "plugins"]);
+		var pluginsDatPath = Path.join([pluginsPath, "plugins.dat"]);
+		Sys.putEnv("VLC_PLUGIN_PATH", pluginsPath);
+
+		if( sys.FileSystem.exists( pluginsDatPath ) )
+		{
+			// Scanning for plugins takes an incredibly long time on MacOS.
+		  	// If we already have a plugin cache bundled, reuse it and don't scan for additional plugins.
+			params.push("--no-plugins-scan");
+		}
+		else
+		{
+			// Rebuild plugins.dat.
+			params.push("--reset-plugins-cache");
+		}
+		#else
+		params.push("--reset-plugins-cache");
 		#end
 
-		#if desktop
-		untyped __cpp__('const char *argv[] = { "--reset-config", "--reset-plugins-cache", "--no-lua" }');
-		instance = LibVLC.create(3, untyped __cpp__('argv'));
-		#else
-		untyped __cpp__('const char *argv[] = { "--no-lua" }');
-		instance = LibVLC.create(1, untyped __cpp__('argv'));
-		#end
+		// Build argv array.
+		untyped __cpp__( "const char *argv[2];" );
+		for( i in 0...params.length )
+		{
+			untyped __cpp__("argv[i] = {0}", params[i]);
+		}
+		// Initialize VLC.
+		instance = LibVLC.create(params.length, untyped __cpp__('argv'));
 
 		#if HXC_LIBVLC_LOGGING
 		LibVLC.log_set(instance, untyped __cpp__('logging'), untyped __cpp__('NULL'));
