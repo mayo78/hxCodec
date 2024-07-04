@@ -51,6 +51,8 @@ static unsigned format_setup(void **data, char *chroma, unsigned *width, unsigne
 		self->pixels = NULL;
 	}
 
+	self->events[10] = true;
+
 	self->pixelsMutex->release();
 
 	::hx::SetTopOfStack(0, true);
@@ -201,6 +203,7 @@ class Video extends Bitmap
 	public var onBackward(default, null):Event<Void->Void>;
 	public var onMediaChanged(default, null):Event<Void->Void>;
 	public var onTextureSetup(default, null):Event<Void->Void>;
+	public var onFormatSetup(default, null):Event<Void->Void>;
 
 	// Declarations
 	private var events:Array<Bool>;
@@ -231,6 +234,7 @@ class Video extends Bitmap
 		onBackward = new Event<Void->Void>();
 		onMediaChanged = new Event<Void->Void>();
 		onTextureSetup = new Event<Void->Void>();
+		onFormatSetup = new Event<Void->Void>();
 
 		var params = ["--no-lua"];
 
@@ -250,7 +254,7 @@ class Video extends Bitmap
 			// Rebuild plugins.dat.
 			params.push("--reset-plugins-cache");
 		}
-		#else
+		#elseif !mobile // blud cant handle  . the cache blud ayo blud
 		params.push("--reset-plugins-cache");
 		#end
 
@@ -271,8 +275,12 @@ class Video extends Bitmap
 	}
 
 	// Methods
-	public function play(location:String, shouldLoop:Bool = false):Int
+	public function play():Int
 	{
+		return LibVLC.media_player_play(mediaPlayer);
+	}
+
+	public function load(location:String, shouldLoop:Bool = false) {
 		if (location != null && location.indexOf('://') != -1)
 			mediaItem = LibVLC.media_new_location(instance, location);
 		else if (location != null)
@@ -283,8 +291,6 @@ class Video extends Bitmap
 			mediaItem = LibVLC.media_new_path(instance, Path.normalize(location));
 			#end
 		}
-		else
-			return -1;
 
 		LibVLC.media_add_option(mediaItem, shouldLoop ? "input-repeat=65535" : "input-repeat=0");
 
@@ -299,8 +305,6 @@ class Video extends Bitmap
 		LibVLC.video_set_callbacks(mediaPlayer, untyped __cpp__('lock'), untyped __cpp__('unlock'), untyped __cpp__('display'), untyped __cpp__('this'));
 
 		attachEvents();
-
-		return LibVLC.media_player_play(mediaPlayer);
 	}
 
 	public function stop():Void
@@ -655,12 +659,18 @@ class Video extends Bitmap
 				texture.dispose();
 
 			texture = Lib.current.stage.context3D.createRectangleTexture(videoWidth, videoHeight, BGRA, true);
+			trace(videoWidth, videoHeight);
 			bitmapData = BitmapData.fromTexture(texture);
-			smoothing = true;
+			//smoothing = true;
 
 			onTextureSetup.dispatch();
 
 			pixelsMutex.release();
+		}
+
+		if (events[10]) {
+			events[10] = false;
+			onFormatSetup.dispatch();
 		}
 	}
 

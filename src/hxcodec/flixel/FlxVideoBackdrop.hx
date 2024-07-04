@@ -21,7 +21,7 @@ class FlxVideoBackdrop extends FlxBackdrop
         public var bitmap(default, null):Video;
 
 	public function new(x:Float = 0, y:Float = 0, repeatAxes:FlxAxes = XY):Void
-        {
+	{
                 super(null, repeatAxes);
                 setPosition(x, y);
                 visible = false;
@@ -53,10 +53,13 @@ class FlxVideoBackdrop extends FlxBackdrop
 
 		if (bitmap != null)
 		{
-			if (FileSystem.exists(Sys.getCwd() + location))
-				return bitmap.play(Sys.getCwd() + location, shouldLoop);
+			if (FileSystem.exists(Sys.getCwd() + location)) {
+				bitmap.load(Sys.getCwd() + location, shouldLoop);
+				return bitmap.play();
+			}
 
-			return bitmap.play(location, shouldLoop);
+			bitmap.load(location, shouldLoop);
+			return bitmap.play();
 		}
 
 		return -1;

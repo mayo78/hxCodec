@@ -37,7 +37,7 @@ class FlxVideoSprite extends FlxSprite
 	}
 
 	// Methods
-	public function play(location:String, shouldLoop:Bool = false):Int
+	public function play():Int
 	{
 		if (autoPause)
 		{
@@ -50,13 +50,17 @@ class FlxVideoSprite extends FlxSprite
 
 		if (bitmap != null)
 		{
-			if (FileSystem.exists(Sys.getCwd() + location))
-				return bitmap.play(Sys.getCwd() + location, shouldLoop);
-			else
-				return bitmap.play(location, shouldLoop);
+			return bitmap.play();
 		}
 		else
 			return -1;
+	}
+
+	public function load(location:String, shouldLoop:Bool) {
+		if (FileSystem.exists(Sys.getCwd() + location))
+			bitmap.load(Sys.getCwd() + location, shouldLoop);
+		else
+			bitmap.load(location, shouldLoop);
 	}
 
 	public function stop():Void
